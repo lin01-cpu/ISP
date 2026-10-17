@@ -112,6 +112,15 @@ def die(msg):
     log("FATAL", f"[失败] {msg}")
     sys.exit(1)
 
+def validate_config():
+    """启动前校验关键配置: 失败时给出可操作的中文提示, 而不是晦涩的 traceback"""
+    w = (WORKER_CHECK_URL or "").strip()
+    if not w or "你的域名" in w:
+        die("检测 Worker 地址未配置: 请在仓库 Settings → Secrets and variables → Actions 中新建名为 DOMAIN 的 "
+            "Repository secret, 值为你的检测 Worker 地址, 形如 https://xxx.workers.dev/check?sstp=vpn:vpn@ (注意末尾的 @)")
+    if not w.startswith(("http://", "https://")):
+        die(f"检测 Worker 地址格式不正确: {w!r} — 应以 http:// 或 https:// 开头")
+
 # ---------------------------------------------------------------------------
 # 数据抓取
 # ---------------------------------------------------------------------------
@@ -419,6 +428,9 @@ def build_nodes_text(data, edge_hosts):
     """
     countries = data["countries"]
     edge = edge_hosts
+    if not edge:
+        die("没有可用的入口地址: 静态 EDGE_HOSTS 为空且优选 API 也拉取失败, "
+            "请检查 OPTIMAL_API 是否可用, 或在 workflow 的 env 中配置 EDGE_HOSTS")
     lines = []
     idx = 0
     ordered = sorted(countries.items(), key=lambda kv: (-int(kv[1].get("count") or 0), str(kv[1].get("code") or kv[0])))
@@ -467,6 +479,7 @@ def write_outputs(data, edge_hosts):
 # main
 # ---------------------------------------------------------------------------
 def main():
+    validate_config()
     session = requests.Session()
     rows, source = fetch_vpngate()
     raw_count = len(rows)
